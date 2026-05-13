@@ -27,7 +27,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return { id: employee.id, email: employee.email, name: employee.name, role: employee.role }
         }
 
-        const employee = await db.employee.findUnique({ where: { email: credentials.email } })
+        const employee = await db.employee.findUnique({ where: { email: String(credentials.email) } })
         if (!employee?.password) return null
         return null
       },
