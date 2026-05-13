@@ -13,7 +13,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null
 
-        // Demo-modus: sjekk mot env-variabler
         const demoEmail = process.env.DEMO_ADMIN_EMAIL
         const demoPassword = process.env.DEMO_ADMIN_PASSWORD
 
@@ -28,10 +27,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return { id: employee.id, email: employee.email, name: employee.name, role: employee.role }
         }
 
-        // Sjekk vanlig Employee med bcrypt (for fremtidig bruk)
-        const employee = await db.employee.findUnique({ where: { email: String(credentials.email) } })
+        const employee = await db.employee.findUnique({ where: { email: credentials.email } })
         if (!employee?.password) return null
-        // bcrypt-sjekk utelates i demo — returnerer null
         return null
       },
     }),
