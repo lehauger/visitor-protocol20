@@ -1,0 +1,99 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Location {
+  id        String   @id @default(cuid())
+  name      String
+  address   String?
+  createdAt DateTime @default(now())
+  doors     Door[]
+}
+
+model Door {
+  id         String   @id @default(cuid())
+  locationId String
+  name       String
+  qrToken    String   @unique @default(cuid())
+  createdAt  DateTime @default(now())
+  location   Location @relation(fields: [locationId], references: [id])
+  visits     Visit[]
+}
+
+model Employee {
+  id               String          @id @default(cuid())
+  azureId          String?         @unique
+  name             String
+  email            String          @unique
+  department       String?
+  role             Role            @default(EMPLOYEE)
+  password         String?
+  syncedAt         DateTime        @default(now())
+  hostedVisits     Visit[]         @relation("HostedVisits")
+  registeredVisits Visit[]         @relation("RegisteredVisits")
+  auditLogs        VisitAuditLog[]
+  configChanges    SystemConfig[]
+}
+
+model Visit {
+  id               String          @id @default(cuid())
+  doorId           String
+  hostEmployeeId   String
+  registeredById   String?
+  visitorName      String
+  visitorEmail     String
+  visitorPhone     String?
+  visitorCompany   String?
+  termsAcceptedAt  DateTime?
+  inviteToken      String?         @unique
+  checkoutToken    String          @unique @default(cuid())
+  checkedInAt      DateTime?
+  checkedOutAt     DateTime?
+  checkoutMethod   CheckoutMethod?
+  isModified       Boolean         @default(false)
+  isAnonymized     Boolean         @default(false)
+  createdAt        DateTime        @default(now())
+  door             Door            @relation(fields: [doorId], references: [id])
+  host             Employee        @relation("HostedVisits", fields: [hostEmployeeId], references: [id])
+  registeredBy     Employee?       @relation("RegisteredVisits", fields: [registeredById], references: [id])
+  auditLog         VisitAuditLog[]
+}
+
+model VisitAuditLog {
+  id          String   @id @default(cuid())
+  visitId     String
+  changedById String
+  changedAt   DateTime @default(now())
+  fieldName   String
+  oldValue    String?
+  newValue    String?
+  visit       Visit    @relation(fields: [visitId], references: [id])
+  changedBy   Employee @relation(fields: [changedById], references: [id])
+}
+
+model SystemConfig {
+  key         String   @id
+  value       String
+  updatedAt   DateTime @updatedAt
+  updatedById String
+  updatedBy   Employee @relation(fields: [updatedById], references: [id])
+}
+
+enum Role {
+  ADMIN
+  RECEPTIONIST
+  EMPLOYEE
+  AUDITOR
+}
+
+enum CheckoutMethod {
+  EMAIL_LINK
+  DOOR_QR
+  AUTO
+  MANUAL
+}

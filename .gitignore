@@ -1,0 +1,11 @@
+node_modules/
+.next/
+out/
+.env
+.env.local
+.env.production
+*.db
+*.sqlite
+prisma/*.db
+.DS_Store
+npm-debug.log*
