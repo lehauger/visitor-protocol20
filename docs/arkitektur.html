@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arkitektur — Besøksprotokoll</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; color: #1e293b; line-height: 1.6; padding: 2rem; }
+    .container { max-width: 900px; margin: 0 auto; }
+    h1 { font-size: 2rem; font-weight: 700; color: #0f172a; margin-bottom: 0.25rem; }
+    h2 { font-size: 1.25rem; font-weight: 600; color: #1e293b; margin: 2rem 0 0.75rem; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.4rem; }
+    h3 { font-size: 1rem; font-weight: 600; color: #475569; margin: 1.25rem 0 0.5rem; }
+    .subtitle { color: #64748b; font-size: 0.9rem; margin-bottom: 2rem; }
+    pre { background: #0f172a; color: #e2e8f0; padding: 1.25rem 1.5rem; border-radius: 8px; overflow-x: auto; font-size: 0.82rem; line-height: 1.7; margin: 0.75rem 0; font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace; }
+    table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.9rem; }
+    th { background: #f1f5f9; text-align: left; padding: 0.6rem 1rem; font-weight: 600; color: #475569; border: 1px solid #e2e8f0; }
+    td { padding: 0.6rem 1rem; border: 1px solid #e2e8f0; vertical-align: top; }
+    td:first-child { font-weight: 500; white-space: nowrap; }
+    tr:nth-child(even) td { background: #f8fafc; }
+    .badge { display: inline-block; background: #ede9fe; color: #5b21b6; font-size: 0.75rem; font-weight: 600; padding: 0.15rem 0.5rem; border-radius: 4px; }
+    .section { background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <h1>Arkitektur — Besøksprotokoll</h1>
+  <p class="subtitle">Teknisk oversikt over applikasjonsstruktur, datamodell og flyt</p>
+
+  <!-- OVERORDNET -->
+  <div class="section">
+    <h2>Overordnet</h2>
+    <pre>Mobil/nettleser ──── HTTP ────► Next.js 16 (App Router)
+                                      │
+                                 ┌────┴─────┐
+                                 │  Server  │  ◄── Server Components
+                                 │Components│      API Route Handlers
+                                 └────┬─────┘
+                                      │ Prisma ORM
+                                      ▼
+                                  SQLite (dev.db)</pre>
+  </div>
+
+  <!-- APPLIKASJONSSTRUKTUR -->
+  <div class="section">
+    <h2>Applikasjonsstruktur</h2>
+    <pre>visitor-protocol20/
+├── app/
+│   ├── (public)/          # Åpne ruter — ingen innlogging
+│   │   ├── checkin/       # Walk-in og invitasjonsinnsjekk
+│   │   ├── checkout/      # Utsjekk via e-post og dør-QR
+│   │   ├── login/         # Innloggingsside
+│   │   └── terms/         # Personvernvilkår
+│   │
+│   ├── (protected)/       # Krever innlogging (proxy.ts)
+│   │   ├── dashboard/     # Sanntidsoversikt dagens besøk
+│   │   ├── visits/        # Søkbar besøkslogg + redigering
+│   │   ├── invite/        # Forhåndsregistrering
+│   │   ├── register/      # PC-basert innsjekk
+│   │   └── admin/
+│   │       ├── doors/     # Lokasjoner, dører, QR-koder
+│   │       └── gdpr/      # Innsyn, eksport, anonymisering
+│   │
+│   └── api/               # REST API-endepunkter
+│       ├── auth/          # NextAuth.js handler
+│       ├── visits/        # CRUD besøk, innsjekk, utsjekk
+│       ├── invites/       # Invitasjoner
+│       └── admin/         # Dører, lokasjoner, GDPR
+│
+├── lib/
+│   ├── db.ts              # Prisma-klient singleton
+│   └── email.ts           # E-posttjeneste (console/SMTP)
+│
+├── components/
+│   └── NavLink.tsx        # Aktiv-lenke navigasjon
+│
+├── auth.ts                # NextAuth konfigurasjon
+├── proxy.ts               # Rutebeskyring (erstatter middleware)
+└── prisma/
+    ├── schema.prisma      # Datamodell (6 tabeller)
+    └── seed.ts            # Demodata</pre>
+  </div>
+
+  <!-- DATAMODELL -->
+  <div class="section">
+    <h2>Datamodell</h2>
+    <pre>Location ──&lt; Door ──&lt; Visit &gt;── Employee (host)
+                         │
+                         ├── Employee (registeredBy, valgfri)
+                         └──&lt; VisitAuditLog &gt;── Employee (changedBy)
+
+SystemConfig (nøkkel-verdi konfigurasjon)</pre>
+
+    <h3>Tabeller</h3>
+    <table>
+      <thead><tr><th>Tabell</th><th>Nøkkelfelter</th><th>Formål</th></tr></thead>
+      <tbody>
+        <tr><td>Location</td><td>id, name, address</td><td>Bygninger/kontor</td></tr>
+        <tr><td>Door</td><td>id, locationId, name, qrToken</td><td>Innganger med unike QR-koder</td></tr>
+        <tr><td>Employee</td><td>id, email, role, azureId</td><td>Ansatte med rolle (ADMIN/RECEPTIONIST/EMPLOYEE/AUDITOR)</td></tr>
+        <tr><td>Visit</td><td>id, checkedInAt, checkedOutAt, checkoutToken, inviteToken, isModified, isAnonymized</td><td>Hvert enkelt besøk</td></tr>
+        <tr><td>VisitAuditLog</td><td>visitId, fieldName, oldValue, newValue, changedById</td><td>Endringshistorikk per besøk</td></tr>
+        <tr><td>SystemConfig</td><td>key (PK), value</td><td>Konfigurasjon (retention_days, auto_checkout_time, SMTP)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- REQUEST-FLYT -->
+  <div class="section">
+    <h2>Request-flyt</h2>
+
+    <h3>Offentlig innsjekk (mobil)</h3>
+    <pre>Mobil scanner QR
+   → GET /checkin/[qrToken]    (Server Component — henter dør + ansatte)
+   → POST /api/visits          (Oppretter Visit, sender e-post)
+   → Redirect til /checkin/confirmation</pre>
+
+    <h3>Ansatt logger inn</h3>
+    <pre>POST /api/auth/signin          (NextAuth Credentials)
+   → JWT-token med id + rolle
+   → proxy.ts tillater tilgang til beskyttede ruter</pre>
+
+    <h3>Besøkslogg med redigering</h3>
+    <pre>GET /visits                    (Server Component — Prisma-spørring med filter)
+PATCH /api/visits/[id]         (Auth-sjekk → oppdater Visit + skriv VisitAuditLog)</pre>
+  </div>
+
+  <!-- AUTENTISERING OG TILGANGSKONTROLL -->
+  <div class="section">
+    <h2>Autentisering og tilgangskontroll</h2>
+    <pre>Alle forespørsler
+   ↓
+proxy.ts (Edge Runtime)
+   ├── /checkin/*, /checkout/*, /login, /terms  → Tillatt uten innlogging
+   └── /dashboard/*, /visits/*, /admin/*        → Krev JWT-sesjon
+                                                    → Ingen sesjon → redirect /login
+
+API-ruter
+   └── auth() sjekkes per handler
+       ├── 401 hvis ikke innlogget
+       └── 403 hvis feil rolle (f.eks. GDPR krever ADMIN)</pre>
+  </div>
+
+  <!-- DEMO VS PRODUKSJON -->
+  <div class="section">
+    <h2>Demo vs. produksjon</h2>
+    <table>
+      <thead><tr><th></th><th>Demo</th><th>Produksjon</th></tr></thead>
+      <tbody>
+        <tr><td>Database</td><td>SQLite (dev.db)</td><td>PostgreSQL (én env-variabel)</td></tr>
+        <tr><td>Autentisering</td><td>Credentials (admin@demo.no)</td><td>Azure AD / Entra ID (OIDC)</td></tr>
+        <tr><td>E-post</td><td>console.log i terminalen</td><td>Nodemailer + SMTP-server</td></tr>
+        <tr><td>Kjøring</td><td>npm run dev</td><td>Next.js i DMZ / LAN</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+</body>
+</html>
